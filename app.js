@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 import {
   getFirestore, doc, collection, onSnapshot, getDoc, setDoc, addDoc, deleteDoc,
-  runTransaction, serverTimestamp, query, orderBy, limit
+  runTransaction, serverTimestamp, query, orderBy, limit, onSnapshotsInSync
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -21,7 +21,9 @@ const state = {
 };
 
 const unsubscribers = [];
-const pendingTaskToggles = new Set();
+// state хранит снимки Firestore; ожидающие действия накладываются только в UI.
+const pendingTaskToggles = new Map();
+const renderedLists = new Map();
 
 function localDateKey(d=new Date()){
   const y=d.getFullYear();
@@ -87,11 +89,44 @@ document.querySelectorAll('.tab').forEach(x=>
 );
 
 function completedToday(taskId){
-  return state.completions.has(`${localDateKey()}_${taskId}`);
+  const key=`${localDateKey()}_${taskId}`;
+  return pendingTaskToggles.get(key)?.done ?? state.completions.has(key);
+}
+
+function visibleBalance(){
+  let balance=Number(state.profile?.balance||0);
+
+  for(const [key,operation] of pendingTaskToggles){
+    const completion=state.completions.get(key);
+    // Уже отражённое в согласованных снимках действие повторно не начисляем.
+    if(operation.done===state.completions.has(key)) continue;
+    balance=operation.done
+      ? balance+operation.reward
+      : Math.max(0,balance-Number(completion.reward??operation.reward));
+  }
+
+  return balance;
+}
+
+function reconcileTaskToggles(){
+  const revision=Number(state.profile?.taskRevision||0);
+  for(const [key,operation] of pendingTaskToggles){
+    if(operation.committedRevision!==null && revision>=operation.committedRevision){
+      pendingTaskToggles.delete(key);
+    }
+  }
+}
+
+function updateList(id,html){
+  if(renderedLists.get(id)===html) return false;
+  $(id).innerHTML=html;
+  renderedLists.set(id,html);
+  return true;
 }
 
 function render(){
-  $('balance').textContent = state.profile?.balance ?? 0;
+  const balance=visibleBalance();
+  $('balance').textContent = balance;
 
   const today = new Date().toLocaleDateString('ru-RU',{
     weekday:'long',
@@ -113,7 +148,7 @@ function render(){
     !(activeTasks.length && doneCount===activeTasks.length)
   );
 
-  $('tasksList').innerHTML = activeTasks.length
+  const tasksHTML = activeTasks.length
     ? activeTasks.map(t=>{
         const done=completedToday(t.id);
         return `
@@ -125,6 +160,7 @@ function render(){
             </div>
             <button class="check"
                     data-task="${t.id}"
+                    ${pendingTaskToggles.has(`${localDateKey()}_${t.id}`)?'disabled aria-busy="true"':''}
                     aria-label="${done?'Снять отметку':'Выполнено'}">
               ${done?'✓':''}
             </button>
@@ -134,15 +170,17 @@ function render(){
          Заданий пока нет. Родитель может добавить их через 🔐
        </div>`;
 
-  document.querySelectorAll('[data-task]').forEach(b=>
-    b.addEventListener('click',()=>toggleTask(b.dataset.task))
-  );
+  if(updateList('tasksList',tasksHTML)){
+    document.querySelectorAll('[data-task]').forEach(b=>
+      b.addEventListener('click',()=>toggleTask(b.dataset.task))
+    );
+  }
 
   const rewards = state.rewards
     .filter(r=>r.active!==false)
     .sort((a,b)=>(a.order??0)-(b.order??0));
 
-  $('rewardsList').innerHTML = rewards.length
+  const rewardsHTML = rewards.length
     ? rewards.map(r=>`
         <div class="reward">
           <div class="reward-icon">${escapeHtml(r.icon||'🎁')}</div>
@@ -150,17 +188,19 @@ function render(){
           <div class="price">💖 ${Number(r.price||0)} Крузейриков</div>
           <button class="buy"
                   data-buy="${r.id}"
-                  ${Number(state.profile?.balance||0)<Number(r.price||0)?'disabled':''}>
+                  ${balance<Number(r.price||0)?'disabled':''}>
             Хочу!
           </button>
         </div>`).join('')
     : `<div class="celebration">Магазин пока пуст.</div>`;
 
-  document.querySelectorAll('[data-buy]').forEach(b=>
-    b.addEventListener('click',()=>requestPurchase(b.dataset.buy))
-  );
+  if(updateList('rewardsList',rewardsHTML)){
+    document.querySelectorAll('[data-buy]').forEach(b=>
+      b.addEventListener('click',()=>requestPurchase(b.dataset.buy))
+    );
+  }
 
-  $('historyList').innerHTML = state.purchases.length
+  const historyHTML = state.purchases.length
     ? state.purchases.map(p=>`
         <div class="history-item">
           <div class="history-top">
@@ -178,49 +218,30 @@ function render(){
           </div>
         </div>`).join('')
     : `<div class="celebration">Покупок пока не было.</div>`;
+  updateList('historyList',historyHTML);
 }
 
 async function toggleTask(taskId){
   const task=state.tasks.find(t=>t.id===taskId);
+  const date=localDateKey();
+  const key=`${date}_${taskId}`;
 
-  if(!task || !state.profile || pendingTaskToggles.has(taskId)) return;
+  if(!task || !state.profile || pendingTaskToggles.has(key)) return;
 
-  const key=`${localDateKey()}_${taskId}`;
   const completionRef=pdoc('completions',key);
   const profileRef=pdoc('profile','main');
-
-  const wasDone=state.completions.has(key);
-  const oldCompletion=state.completions.get(key);
-  const oldBalance=Number(state.profile.balance||0);
   const reward=Number(task.reward||0);
+  const operation={
+    done:!state.completions.has(key),
+    reward,
+    committedRevision:null
+  };
 
-  pendingTaskToggles.add(taskId);
-
-  // Мгновенно меняем интерфейс.
-  if(wasDone){
-    state.completions.delete(key);
-    state.profile={
-      ...state.profile,
-      balance:Math.max(0,oldBalance-reward)
-    };
-  }else{
-    state.completions.set(key,{
-      taskId,
-      taskTitle:task.title,
-      reward,
-      date:localDateKey(),
-      optimistic:true
-    });
-    state.profile={
-      ...state.profile,
-      balance:oldBalance+reward
-    };
-  }
-
+  pendingTaskToggles.set(key,operation);
   render();
 
   try{
-    await runTransaction(db,async tx=>{
+    operation.committedRevision=await runTransaction(db,async tx=>{
       const [cSnap,pSnap]=await Promise.all([
         tx.get(completionRef),
         tx.get(profileRef)
@@ -229,49 +250,47 @@ async function toggleTask(taskId){
       const profile=pSnap.data()||{balance:0};
       let balance=Number(profile.balance||0);
 
-      if(cSnap.exists()){
+      // Сохраняем намерение клика, в том числе при повторе transaction.
+      // Два устройства, отмечающие одно задание, начислят награду один раз.
+      if(!operation.done && cSnap.exists()){
         tx.delete(completionRef);
         balance=Math.max(
           0,
-          balance-Number(cSnap.data().reward||task.reward||0)
+          balance-Number(cSnap.data().reward??reward)
         );
-      }else{
+      }else if(operation.done && !cSnap.exists()){
         tx.set(completionRef,{
           taskId,
           taskTitle:task.title,
           reward,
-          date:localDateKey(),
+          date,
           createdAt:serverTimestamp()
         });
         balance+=reward;
       }
 
+      // Скалярная ревизия связывает commit с последующими снимками listeners.
+      // Даже уже выполненное другим устройством действие получает подтверждение.
+      const taskRevision=Number(profile.taskRevision||0)+1;
       tx.set(profileRef,{
-        ...profile,
         name:'Рамина',
         balance,
+        taskRevision,
         updatedAt:serverTimestamp()
       },{merge:true});
+      return taskRevision;
     });
+
+    // Promise и снимки могут прийти в любом порядке. Ждём оба подтверждения.
+    reconcileTaskToggles();
+    render();
   }catch(e){
     console.error(e);
 
-    // Если Firebase не принял изменение — возвращаем всё назад.
-    if(oldCompletion){
-      state.completions.set(key,oldCompletion);
-    }else{
-      state.completions.delete(key);
-    }
-
-    state.profile={
-      ...state.profile,
-      balance:oldBalance
-    };
-
+    // Удаляем только неудавшееся действие, сохраняя свежие данные других устройств.
+    pendingTaskToggles.delete(key);
     render();
     showToast('Не получилось сохранить. Попробуй ещё раз.');
-  }finally{
-    pendingTaskToggles.delete(taskId);
   }
 }
 
@@ -279,7 +298,7 @@ async function requestPurchase(rewardId){
   const reward=state.rewards.find(r=>r.id===rewardId);
   if(!reward) return;
 
-  if(Number(state.profile?.balance||0)<Number(reward.price||0)){
+  if(visibleBalance()<Number(reward.price||0)){
     showToast('Пока не хватает Крузейриков 💖');
     return;
   }
@@ -377,7 +396,7 @@ function openParentPanel(){
     <h3>Для родителей</h3>
     <p class="muted">
       Баланс Рамины:
-      <b>${state.profile?.balance||0}</b> Крузейриков
+      <b>${visibleBalance()}</b> Крузейриков
     </p>
 
     <h4>Ждут подтверждения</h4>
@@ -741,12 +760,18 @@ async function seedIfNeeded(){
 }
 
 function listen(){
+  let profileSnapshot=null;
+  let completionsSnapshot=null;
+  let taskSnapshotsChanged=false;
+  let needsRender=false;
+
   unsubscribers.push(
     onSnapshot(
       pdoc('profile','main'),
+      {includeMetadataChanges:true},
       s=>{
-        state.profile=s.exists()?s.data():null;
-        render();
+        profileSnapshot=s;
+        taskSnapshotsChanged=true;
       }
     )
   );
@@ -768,7 +793,7 @@ function listen(){
           id:d.id,
           ...d.data()
         }));
-        render();
+        needsRender=true;
       }
     )
   );
@@ -781,7 +806,7 @@ function listen(){
           id:d.id,
           ...d.data()
         }));
-        render();
+        needsRender=true;
       }
     )
   );
@@ -789,17 +814,10 @@ function listen(){
   unsubscribers.push(
     onSnapshot(
       pcol('completions'),
+      {includeMetadataChanges:true},
       s=>{
-        state.completions=new Map(
-          s.docs.map(d=>[
-            d.id,
-            {
-              id:d.id,
-              ...d.data()
-            }
-          ])
-        );
-        render();
+        completionsSnapshot=s;
+        taskSnapshotsChanged=true;
       }
     )
   );
@@ -818,10 +836,32 @@ function listen(){
           id:d.id,
           ...d.data()
         }));
-        render();
+        needsRender=true;
       }
     )
   );
+
+  unsubscribers.push(onSnapshotsInSync(db,()=>{
+    // Не смешиваем новый баланс со старыми completions из того же события.
+    // in-sync согласует listeners, а metadata отдельно подтверждает сервер.
+    const confirmed=[profileSnapshot,completionsSnapshot].every(s=>
+      s && !s.metadata.fromCache && !s.metadata.hasPendingWrites
+    );
+    if(taskSnapshotsChanged && confirmed){
+      state.profile=profileSnapshot.exists()?profileSnapshot.data():null;
+      state.completions=new Map(completionsSnapshot.docs.map(d=>[
+        d.id,{id:d.id,...d.data()}
+      ]));
+      taskSnapshotsChanged=false;
+      reconcileTaskToggles();
+      needsRender=true;
+    }
+    // Одна отрисовка на согласованное событие, а неизменившиеся списки остаются в DOM.
+    if(needsRender){
+      needsRender=false;
+      render();
+    }
+  }));
 }
 
 async function start(){
