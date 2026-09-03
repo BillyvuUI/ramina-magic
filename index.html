@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f6b7db" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Рамина — Волшебный день</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="appShell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">ВОЛШЕБНЫЙ ДЕНЬ</div>
+        <h1>Рамина 🦄</h1>
+      </div>
+      <button id="parentBtn" class="icon-btn" aria-label="Родительский режим">🔐</button>
+    </header>
+
+    <section class="hero card">
+      <div>
+        <div class="hero-label">Мои Крузейрики</div>
+        <div id="balance" class="balance">0</div>
+        <div class="muted">Крузейриков</div>
+      </div>
+      <div class="unicorn">🦄✨</div>
+    </section>
+
+    <nav class="tabs" aria-label="Разделы">
+      <button class="tab active" data-tab="today">Сегодня</button>
+      <button class="tab" data-tab="shop">Магазин</button>
+      <button class="tab" data-tab="history">История</button>
+    </nav>
+
+    <main>
+      <section id="todayTab" class="tab-panel active">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">ЗАДАНИЯ</div>
+            <h2 id="todayTitle">Сегодня</h2>
+          </div>
+          <div id="progressBadge" class="pill">0/0</div>
+        </div>
+        <div id="tasksList" class="stack"></div>
+        <div id="allDone" class="celebration hidden">🌈 Все задания выполнены! Волшебный день готов ✨</div>
+      </section>
+
+      <section id="shopTab" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">МАГАЗИН</div>
+            <h2>Мои желания</h2>
+          </div>
+        </div>
+        <div id="rewardsList" class="grid"></div>
+      </section>
+
+      <section id="historyTab" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">ИСТОРИЯ</div>
+            <h2>Что происходило</h2>
+          </div>
+        </div>
+        <div id="historyList" class="stack"></div>
+      </section>
+    </main>
+
+    <footer class="footer">RAMINA MAGIC · v0.1</footer>
+  </div>
+
+  <div id="syncOverlay" class="overlay">
+    <div class="modal small center">
+      <div class="spinner"></div>
+      <h3>Подключаю волшебство…</h3>
+      <p id="syncText" class="muted">Соединяюсь с Firebase</p>
+    </div>
+  </div>
+
+  <div id="modalOverlay" class="overlay hidden">
+    <div id="modalCard" class="modal"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
