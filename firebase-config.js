@@ -1,9 +1,9 @@
-// Вставь сюда firebaseConfig из Firebase Console -> Project settings -> Your apps -> Web app.
 export const firebaseConfig = {
-  apiKey: "PASTE_HERE",
-  authDomain: "PASTE_HERE.firebaseapp.com",
-  projectId: "PASTE_HERE",
-  storageBucket: "PASTE_HERE.firebasestorage.app",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE"
+  apiKey: "AIzaSyBCi9aMvOjrtx_0foiac4v0RKuVXg11XQI",
+  authDomain: "ramina-magic.firebaseapp.com",
+  databaseURL: "https://ramina-magic-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ramina-magic",
+  storageBucket: "ramina-magic.firebasestorage.app",
+  messagingSenderId: "723830866874",
+  appId: "1:723830866874:web:dc533aa2ae3a5ea3519383"
 };
