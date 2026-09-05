@@ -1,91 +1,15 @@
 <!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#f6b7db" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <title>Рамина — Волшебный день</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div id="appShell">
-    <header class="topbar">
-      <div>
-        <div class="eyebrow">ВОЛШЕБНЫЙ ДЕНЬ</div>
-        <h1>Рамина 🦄</h1>
-      </div>
-      <button id="parentBtn" class="icon-btn" aria-label="Родительский режим">🔐</button>
-    </header>
-
-    <section class="hero card">
-      <div>
-        <div class="hero-label">Мои Крузейрики</div>
-        <div id="balance" class="balance">0</div>
-        <div class="muted">Крузейриков</div>
-      </div>
-      <div class="unicorn">🦄✨</div>
-    </section>
-
-    <nav class="tabs" aria-label="Разделы">
-      <button class="tab active" data-tab="today">Сегодня</button>
-      <button class="tab" data-tab="shop">Магазин</button>
-      <button class="tab" data-tab="history">История</button>
-    </nav>
-
-    <main>
-      <section id="todayTab" class="tab-panel active">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">ЗАДАНИЯ</div>
-            <h2 id="todayTitle">Сегодня</h2>
-          </div>
-          <div id="progressBadge" class="pill">0/0</div>
-        </div>
-        <div id="tasksList" class="stack"></div>
-        <div id="allDone" class="celebration hidden">🌈 Все задания выполнены! Волшебный день готов ✨</div>
-      </section>
-
-      <section id="shopTab" class="tab-panel">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">МАГАЗИН</div>
-            <h2>Мои желания</h2>
-          </div>
-        </div>
-        <div id="rewardsList" class="grid"></div>
-      </section>
-
-      <section id="historyTab" class="tab-panel">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">ИСТОРИЯ</div>
-            <h2>Что происходило</h2>
-          </div>
-        </div>
-        <div id="historyList" class="stack"></div>
-      </section>
-    </main>
-
-    <footer class="footer">RAMINA MAGIC · v0.1</footer>
-  </div>
-
-  <div id="syncOverlay" class="overlay">
-    <div class="modal small center">
-      <div class="spinner"></div>
-      <h3>Подключаю волшебство…</h3>
-      <p id="syncText" class="muted">Соединяюсь с Firebase</p>
-    </div>
-  </div>
-
-  <div id="modalOverlay" class="overlay hidden">
-    <div id="modalCard" class="modal"></div>
-  </div>
-
-  <div id="toast" class="toast hidden"></div>
-
-  <script type="module" src="app.js"></script>
-</body>
-</html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#faf5f1"><title>Мир Рамины</title><link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./ui/v2-game.css"></head>
+<body class="game-body"><main id="appShell" class="game-shell">
+  <header class="game-topbar"><a class="game-brand" href="#" aria-label="Мир Рамины">✧ <span>RAMINA <small>MAGIC</small></span></a><div class="coin-pill" aria-label="Баланс Крузейриков"><span>✦</span> <b id="balance">—</b><small>Крузейриков</small></div><button id="parentOpen" class="parent-key" aria-label="Родительский режим">⚿</button></header>
+  <section class="tab-panel active" id="mainTab"><div id="gameHome"></div><div class="secondary-actions"><button data-game-action="shop">🎀 Магазин</button><button data-game-action="history">✧ История</button><button data-game-action="archive">☾ Месяцы</button></div></section>
+  <section class="tab-panel" id="sportTab"><div id="sportSchedule"></div></section>
+  <section class="tab-panel" id="homeTab"><div id="homeSchedule"></div></section>
+  <p id="gameMessage" class="game-message" role="status"></p>
+  <p id="partialStart" class="gentle-note"></p><section id="enrollment" hidden><p>Не удалось подключиться. Проверьте интернет и попробуйте ещё раз.</p><button id="connect">Повторить подключение</button></section><button id="retry" class="sync-retry">Проверить сохранение</button><p id="status" class="game-message" role="status">Подключение…</p><aside id="updateBanner" class="update-banner" hidden>Доступна новая версия приложения <button>Безопасно обновить</button></aside>
+  <nav class="game-nav" aria-label="Основная навигация"><button data-tab="main" class="active" aria-current="page"><span>✧</span>Главная</button><button data-tab="sport"><span>☀</span>Спорт</button><button data-tab="home"><span>⌂</span>Дом</button></nav>
+</main>
+<dialog id="parentGate" class="game-dialog"><form id="parentForm"><h2>Родительский режим</h2><label>PIN<input class="field" name="pin" type="password" inputmode="numeric" maxlength="8" minlength="4" autocomplete="off" required></label><button type="submit" class="game-primary">Открыть</button><button type="button" onclick="this.closest('dialog').close()">Отмена</button></form></dialog>
+<dialog id="gameDialog" class="game-dialog"></dialog><dialog id="rewardCeremony" class="game-dialog ceremony" aria-label="Твой подарок"></dialog>
+<div id="v2ModalOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Библиотека и расписание"><div id="v2ModalCard" class="modal"></div></div>
+<script type="module" src="./ui/v2-production-entry.mjs"></script></body></html>
